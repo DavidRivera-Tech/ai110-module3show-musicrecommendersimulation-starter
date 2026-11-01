@@ -12,24 +12,46 @@ You will implement the functions in recommender.py:
 from src.recommender import load_songs, recommend_songs
 
 
+PROFILES = {
+    "High-Energy Pop": {
+        "genre": "pop", "mood": "happy", "energy": 0.8, "likes_acoustic": False,
+    },
+    "Chill Lofi": {
+        "genre": "lofi", "mood": "chill", "energy": 0.35, "likes_acoustic": True,
+    },
+    "Deep Intense Rock": {
+        "genre": "rock", "mood": "intense", "energy": 0.92, "likes_acoustic": False,
+    },
+    "Edge Case: Classical but High Energy": {
+        "genre": "classical", "mood": "melancholic", "energy": 0.9, "likes_acoustic": True,
+    },
+    "Edge Case: Genre Not in Catalog": {
+        "genre": "k-pop", "mood": "happy", "energy": 0.75,
+    },
+    "Edge Case: Capitalized Input": {
+        "genre": "Pop", "mood": "Happy", "energy": 0.8,
+    },
+}
+
+
 def main() -> None:
-    songs = load_songs("data/songs.csv") 
+    songs = load_songs("data/songs.csv")
 
-    # Starter example profile
-    user_prefs = {"genre": "pop", "mood": "happy", "energy": 0.8}
+    for name, user_prefs in PROFILES.items():
+        recommendations = recommend_songs(user_prefs, songs, k=5)
 
-    recommendations = recommend_songs(user_prefs, songs, k=5)
+        profile = ", ".join(f"{key}={value}" for key, value in user_prefs.items())
+        header = f"PROFILE: {name}"
+        print()
+        print(header)
+        print("=" * len(header))
+        print(f"Preferences: {profile}")
 
-    profile = ", ".join(f"{key}={value}" for key, value in user_prefs.items())
-    header = f"Top {len(recommendations)} recommendations for: {profile}"
-    print()
-    print(header)
-    print("=" * len(header))
-
-    for rank, (song, score, explanation) in enumerate(recommendations, start=1):
-        print(f"\n{rank}. {song['title']} by {song['artist']}  (score: {score:.2f})")
-        for reason in explanation.split("; "):
-            print(f"     - {reason}")
+        for rank, (song, score, explanation) in enumerate(recommendations, start=1):
+            print(f"\n{rank}. {song['title']} by {song['artist']}  (score: {score:.2f})")
+            for reason in explanation.split("; "):
+                print(f"     - {reason}")
+        print()
 
 
 if __name__ == "__main__":
