@@ -59,7 +59,15 @@ def main() -> None:
         action="store_true",
         help="re-rank so the same artist and genre don't fill the top results (off by default)",
     )
+    parser.add_argument(
+        "--table",
+        action="store_true",
+        help="print each profile's results as a table (off by default)",
+    )
     args = parser.parse_args()
+
+    if args.table:
+        from tabulate import tabulate  # imported here so the default output needs no extra install
 
     if args.list_modes:
         for strategy in STRATEGIES.values():
@@ -84,10 +92,32 @@ def main() -> None:
         print("=" * len(header))
         print(f"Preferences: {profile}")
 
-        for rank, (song, score, explanation) in enumerate(recommendations, start=1):
-            print(f"\n{rank}. {song['title']} by {song['artist']}  (score: {score:.2f})")
-            for reason in explanation.split("; "):
-                print(f"     - {reason}")
+        if args.table:
+            rows = [
+                [
+                    rank,
+                    song["title"],
+                    song["artist"],
+                    song["genre"],
+                    f"{score:.2f}",
+                    "\n".join(explanation.split("; ")),
+                ]
+                for rank, (song, score, explanation) in enumerate(recommendations, start=1)
+            ]
+            print()
+            print(
+                tabulate(
+                    rows,
+                    headers=["#", "Title", "Artist", "Genre", "Score", "Why"],
+                    tablefmt="grid",
+                    disable_numparse=True,
+                )
+            )
+        else:
+            for rank, (song, score, explanation) in enumerate(recommendations, start=1):
+                print(f"\n{rank}. {song['title']} by {song['artist']}  (score: {score:.2f})")
+                for reason in explanation.split("; "):
+                    print(f"     - {reason}")
         print()
 
 
