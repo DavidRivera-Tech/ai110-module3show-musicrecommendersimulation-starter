@@ -2,7 +2,7 @@
 
 ## Project Summary
 
-My version is called **GenreFirst 1.0**. It is a small content-based music recommender that reads a 22-song catalog and scores every song against one listener's taste: a favorite genre, a favorite mood, a target energy level, and whether they like acoustic sound. Genre match counts the most (+2.00), then mood (+1.00), then how close the song's energy is to the target (up to 1.50), then acoustic preference (up to 0.50). It sorts the songs by score and prints the top 5, with the reasons behind each score. I tested it on six listener profiles, including three edge cases, to see where it works well and where genre-heavy scoring and a tiny catalog lead it astray.
+My version is called **GenreFirst 1.0**. It is a small content-based music recommender that reads a 22-song catalog and scores every song against one listener's taste: a favorite genre, a favorite mood, a target energy level, and whether they like acoustic sound. Genre match counts the most (+2.00), then how close the song's energy is to the target (up to 1.50), then mood (+1.00), then acoustic preference (up to 0.50). It sorts the songs by score and prints the top 5, with the reasons behind each score. It also supports optional extra rules, four ranking modes (`--mode`), an optional diversity re-rank (`--diversity`), and table output (`--table`). I tested it on six listener profiles, including three edge cases, plus a seventh profile that demonstrates the optional extra rules, to see where it works well and where genre-heavy scoring and a tiny catalog lead it astray.
 
 ---
 
@@ -58,14 +58,23 @@ This recommender is **content-based only**, since there is a song catalog and a 
 
 ### Algorithm Recipe
 
-Each song gets a score from 0 to 5.0 by adding up these rules:
+Each song gets a score by adding up these rules. The numbers are the default `balanced` weights:
 
 | Rule | Points |
 |---|---|
 | Genre match | **+2.0** if `song.genre == favorite_genre`, otherwise 0 |
 | Mood match | **+1.0** if `song.mood == favorite_mood`, otherwise 0 |
-| Energy closeness | **1.5 × (1 − \|song energy − target energy\|)** |
+| Energy closeness | **1.5 × (1 − \|song energy − target energy\|)**, never below 0 |
 | Acoustic preference | If `likes_acoustic`: **+0.5 × acousticness**. Otherwise: **+0.5 × (1 − acousticness)** |
+| **Optional extra rules** | *Each one counts only if its key is in the user's preferences* |
+| Tempo (`tempo_bpm`) | **0.5 × (1 − \|song BPM − target BPM\| / 60)**, never below 0 |
+| Valence (`valence`) | **0.5 × (1 − \|song valence − target\|)**, never below 0 |
+| Popularity (`popularity`) | **0.5 × (1 − \|song popularity − target\| / 100)**, never below 0 |
+| Decade (`decade`) | **+0.5** if `song.release_decade` matches |
+| Mood tags (`mood_tags`) | **+0.25** per shared tag, up to 3 tags |
+| Instrumental (`instrumental`) | If true: **+0.5 × instrumentalness**. Otherwise: **+0.5 × (1 − instrumentalness)** |
+
+The most a song can earn is **5.0** with the four core rules. If a listener supplies every optional key, the maximum is **8.25** (5.0 plus five optional rules at 0.5 each, plus 0.75 for three shared mood tags). The other ranking modes change these weights; see "Ranking modes" under Experiments You Tried.
 
 Numeric features reward **closeness, not higher or lower values**. A song with energy 0.80 earns full energy points for a user targeting 0.80, and a song at 0.95 earns fewer, even though it is "more energetic." Likewise, a user who dislikes acoustic music earns points from songs with *low* acousticness, not from songs with high or low values in general.
 
@@ -85,7 +94,7 @@ User preferences   -->   Load every song from songs.csv  -->   Sort songs by sco
 - **Genre can dominate.** At +2.0 it is the largest single reward, so a song in the favorite genre can outrank a song that is a near-perfect mood and energy match but in a different genre. Great matches outside the user's genre get pushed down the list.
 - **Thin genres give weak results.** Most genres in the catalog have only one song, and only pop, lofi, and jazz have more than one. A user whose favorite genre is, say, metal gets one genre bonus to hand out. After that song, the rest of the list is ranked only by mood, energy, and acousticness.
 - **Exact string matching is brittle.** `indie pop` does not match `pop`, and a mood like `focused` does not match `chill`, even though a listener might enjoy both. Close matches get zero credit.
-- **Features outside the rules are ignored.** Valence, tempo, danceability, and the other new columns do not affect the score, so two songs that feel very different can score the same.
+- **Some features are still ignored.** Tempo, valence, popularity, decade, mood tags, and instrumentalness are now optional rules, but they only count when the listener supplies them. Danceability, speechiness, and liveness are still unused, so two songs that feel very different can score the same.
 
 ---
 
@@ -113,21 +122,73 @@ pip install -r requirements.txt
 python -m src.main
 ```
 
+### Command-line options
+
+- `--mode {balanced,genre-boost,mood-first,energy-focused}`: choose how much each rule counts (default: `balanced`).
+- `--list-modes`: print each ranking mode's name and description, then exit.
+- `--diversity`: re-rank the results so one artist or genre can't fill the top spots (artist repeat -1.00, genre repeat -0.50). Off by default.
+- `--table`: print each profile's results as a table, with one reason per line. Off by default.
+
+The flags work together. For example:
+
+```bash
+python -m src.main --table --mode mood-first --diversity
+```
+
+### Table output
+
+This is the actual output of `python -m src.main --table --diversity`, shown for the High-Energy Pop profile only:
+
+```
+Loaded songs: 22
+Diversity re-rank: on (artist repeat -1.00, genre repeat -0.50)
+
+PROFILE: High-Energy Pop
+========================
+Preferences: genre=pop, mood=happy, energy=0.8, likes_acoustic=False
+
++-----+-------------------+---------------+-----------+---------+-------------------------------------------------+
+| #   | Title             | Artist        | Genre     | Score   | Why                                             |
++=====+===================+===============+===========+=========+=================================================+
+| 1   | Sunrise City      | Neon Echo     | pop       | 4.88    | genre match (+2.00)                             |
+|     |                   |               |           |         | mood match (+1.00)                              |
+|     |                   |               |           |         | energy 0.82 vs target 0.80 (+1.47)              |
+|     |                   |               |           |         | acousticness 0.18, prefers non-acoustic (+0.41) |
++-----+-------------------+---------------+-----------+---------+-------------------------------------------------+
+| 2   | Gym Hero          | Max Pulse     | pop       | 3.28    | genre match (+2.00)                             |
+|     |                   |               |           |         | energy 0.93 vs target 0.80 (+1.30)              |
+|     |                   |               |           |         | acousticness 0.05, prefers non-acoustic (+0.47) |
+|     |                   |               |           |         | genre repeat penalty (-0.50)                    |
++-----+-------------------+---------------+-----------+---------+-------------------------------------------------+
+| 3   | Rooftop Lights    | Indigo Parade | indie pop | 2.77    | mood match (+1.00)                              |
+|     |                   |               |           |         | energy 0.76 vs target 0.80 (+1.44)              |
+|     |                   |               |           |         | acousticness 0.35, prefers non-acoustic (+0.33) |
++-----+-------------------+---------------+-----------+---------+-------------------------------------------------+
+| 4   | Concrete Crown    | Kid Meridian  | hip-hop   | 1.91    | energy 0.78 vs target 0.80 (+1.47)              |
+|     |                   |               |           |         | acousticness 0.12, prefers non-acoustic (+0.44) |
++-----+-------------------+---------------+-----------+---------+-------------------------------------------------+
+| 5   | Fuego en la Calle | Los Soleros   | latin     | 1.84    | energy 0.86 vs target 0.80 (+1.41)              |
+|     |                   |               |           |         | acousticness 0.15, prefers non-acoustic (+0.42) |
++-----+-------------------+---------------+-----------+---------+-------------------------------------------------+
+```
+
+With the diversity re-rank on, Afterglow Avenue (a second Neon Echo song, 3.72 without the re-rank) drops out of the top 5.
+
 ### Running Tests
 
-Run the starter tests with:
+Run the tests with:
 
 ```bash
 pytest
 ```
 
-You can add more tests in `tests/test_recommender.py`.
+The suite has 12 tests in `tests/test_recommender.py`: 2 starter tests for the `Recommender` class and 10 more that cover loading songs, energy scoring, ranking order, the ranking modes, the unknown-mode error, and the diversity re-rank.
 
 ---
 
 ## Sample Recommendation Output
 
-This is the first of the six profiles that `python -m src.main` runs (High-Energy Pop: pop / happy / energy 0.8 / not acoustic):
+This is the first of the seven profiles that `python -m src.main` runs (High-Energy Pop: pop / happy / energy 0.8 / not acoustic):
 
 ```
 PROFILE: High-Energy Pop
@@ -160,7 +221,7 @@ Preferences: genre=pop, mood=happy, energy=0.8, likes_acoustic=False
      - acousticness 0.12, prefers non-acoustic (+0.44)
 ```
 
-The results match what a pop/happy listener would expect: Sunrise City (4.88) is #1 because it is the only song to earn both the genre and mood bonuses (and its energy is almost on target), and the other two pop songs, Gym Hero (3.78) and Afterglow Avenue (3.72), come next. Rooftop Lights (2.77) got no genre points because "indie pop" does not exactly match "pop", which is the string-matching bias predicted in Expected Biases. With the +2.00 genre bonus it would have scored 4.77 and ranked #2, so a near-perfect match for this listener is pushed down to fourth. See [model_card.md](model_card.md) section 7 for the output of the other five profiles.
+The results match what a pop/happy listener would expect: Sunrise City (4.88) is #1 because it is the only song to earn both the genre and mood bonuses (and its energy is almost on target), and the other two pop songs, Gym Hero (3.78) and Afterglow Avenue (3.72), come next. Rooftop Lights (2.77) got no genre points because "indie pop" does not exactly match "pop", which is the string-matching bias predicted in Expected Biases. With the +2.00 genre bonus it would have scored 4.77 and ranked #2, so a near-perfect match for this listener is pushed down to fourth. See [model_card.md](model_card.md) section 7 for the other five evaluation profiles. The seventh profile, Extended: Late-Night Focus, demonstrates the optional extra rules; run `python -m src.main` to see its output.
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->
 
@@ -227,8 +288,8 @@ The same listener gets three different #1 songs across the four modes. Genre-boo
 - **Genre dominates a tiny catalog.** The +2.00 genre bonus is larger than the most energy closeness can add (1.50), and 14 of the 17 genres have only one song. A 0.15-energy classical song ranked #1 (2.86) for a listener who wanted energy 0.9.
 - **Exact, case-sensitive matching.** "Pop" does not match "pop". The Capitalized Input profile dropped Sunrise City from 4.88 to 1.47 with no warning.
 - **Sparse moods.** There is no "sad" mood, and 9 of the 15 moods appear on just one song.
-- **No input validation.** An energy target of 2.0 gives all 22 songs negative energy points.
-- **Artist repetition.** Neon Echo holds #1 and #3 in the High-Energy Pop results, because nothing limits one artist.
+- **No input validation.** Energy closeness is now clamped at 0, so a target like 2.0 can't give negative points, but out-of-range targets still aren't rejected.
+- **Artist repetition.** This happens by default: Neon Echo holds #1 and #3 in the High-Energy Pop results, because nothing limits one artist. `--diversity` fixes it, at a cost to relevance (see model card section 6).
 
 See the [model card](model_card.md) (sections 6 and 7) for more detail and the full numbers.
 
