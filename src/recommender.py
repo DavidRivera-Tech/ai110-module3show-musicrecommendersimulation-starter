@@ -48,6 +48,7 @@ class Recommender:
         self.songs = songs
 
     def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
+        """Returns the k songs that best match the user, highest score first."""
         user_prefs = _profile_to_prefs(user)
         ranked = sorted(
             self.songs,
@@ -57,14 +58,12 @@ class Recommender:
         return ranked[:k]
 
     def explain_recommendation(self, user: UserProfile, song: Song) -> str:
+        """Returns the scoring reasons for a song as one semicolon-separated string."""
         _, reasons = score_song(_profile_to_prefs(user), asdict(song))
         return "; ".join(reasons)
 
 def load_songs(csv_path: str) -> List[Dict]:
-    """
-    Loads songs from a CSV file.
-    Required by src/main.py
-    """
+    """Loads songs from a CSV file into a list of dicts with numeric fields converted."""
     int_fields = ("id", "popularity", "release_decade")
     float_fields = (
         "energy",
@@ -92,10 +91,7 @@ def load_songs(csv_path: str) -> List[Dict]:
     return songs
 
 def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
-    """
-    Scores a single song against user preferences.
-    Required by recommend_songs() and src/main.py
-    """
+    """Scores one song against user preferences and returns (score, reasons)."""
     score = 0.0
     reasons: List[str] = []
 
@@ -125,10 +121,7 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     return score, reasons
 
 def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
-    """
-    Functional implementation of the recommendation logic.
-    Required by src/main.py
-    """
+    """Scores every song, sorts highest first, and returns the top k as (song, score, explanation)."""
     scored = []
     for song in songs:
         score, reasons = score_song(user_prefs, song)

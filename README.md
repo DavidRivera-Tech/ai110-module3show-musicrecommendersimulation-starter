@@ -136,16 +136,36 @@ You can add more tests in `tests/test_recommender.py`.
 
 ## Sample Recommendation Output
 
-Paste a sample of your recommender's output here as a text block so a reader can see what it produces:
+Output of `python -m src.main` for a pop / happy / energy 0.8 listener:
 
 ```
-# e.g.:
-# User profile: genre=indie, mood=chill, energy=low
-# Recommendations:
-#   1. ...
-#   2. ...
-#   3. ...
+Loaded songs: 22
+
+Top 5 recommendations for: genre=pop, mood=happy, energy=0.8
+============================================================
+
+1. Sunrise City by Neon Echo  (score: 4.47)
+     - genre match (+2.00)
+     - mood match (+1.00)
+     - energy 0.82 vs target 0.80 (+1.47)
+
+2. Afterglow Avenue by Neon Echo  (score: 3.32)
+     - genre match (+2.00)
+     - energy 0.68 vs target 0.80 (+1.32)
+
+3. Gym Hero by Max Pulse  (score: 3.30)
+     - genre match (+2.00)
+     - energy 0.93 vs target 0.80 (+1.30)
+
+4. Rooftop Lights by Indigo Parade  (score: 2.44)
+     - mood match (+1.00)
+     - energy 0.76 vs target 0.80 (+1.44)
+
+5. Concrete Crown by Kid Meridian  (score: 1.47)
+     - energy 0.78 vs target 0.80 (+1.47)
 ```
+
+The results mostly match what a pop/happy listener would expect: Sunrise City is the only song to earn genre, mood, and energy points, so it ranks first, and the next two spots go to the other pop songs. Rooftop Lights got no genre points because "indie pop" does not exactly match "pop", which is the string-matching bias predicted in Expected Biases. Without that miss it would have scored 4.44 and ranked second, so a near-perfect match for this listener is pushed down to fourth.
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->
 
