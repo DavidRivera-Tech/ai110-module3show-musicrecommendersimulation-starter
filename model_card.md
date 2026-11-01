@@ -2,20 +2,28 @@
 
 ## 1. Model Name  
 
-Give your model a short, descriptive name.  
-Example: **VibeFinder 1.0**  
+**GenreFirst 1.0**  
 
 ---
 
 ## 2. Intended Use  
 
-Describe what your recommender is designed to do and who it is for. 
+This recommender suggests songs from a small catalog. It picks the top 5 songs that best match one listener's taste.
 
-Prompts:  
+**What it recommends.** It gives a ranked list of songs. Each song comes with a score and a short list of reasons.
 
-- What kind of recommendations does it generate  
-- What assumptions does it make about the user  
-- Is this for real users or classroom exploration  
+**What it assumes about the user.**
+- The user can describe their taste with four things: a favorite genre, a favorite mood, a target energy level, and whether they like acoustic sound.
+- The user wants one kind of music at a time.
+- The user types the genre and mood exactly as the catalog spells them.
+- The user gives energy as a number from 0 to 1.
+
+**Who it is for.** It is for classroom exploration. It is a learning project about how recommenders turn data into predictions.
+
+**Not intended for:**
+- Real users or a real music app.
+- Real decisions about artists, such as who gets promoted, paid, or placed on a playlist.
+- Anyone who needs personalization from their listening history. It does not learn from plays, skips, or likes.
 
 ---
 
@@ -44,26 +52,40 @@ The most a song can earn is 5 points. Along with each score, the system writes a
 
 ## 4. Data  
 
-Describe the dataset the model uses.  
+**Size.** The catalog has 22 songs in `data/songs.csv`. It covers 17 genres and 15 moods.
 
-Prompts:  
+**What is in each row.** Each song has 16 columns:
+- `id`, `title`, `artist`
+- `genre`, `mood`, `mood_tags`
+- `energy`, `valence`, `danceability`, `acousticness`
+- `instrumentalness`, `speechiness`, `liveness`
+- `tempo_bpm`, `popularity`, `release_decade`
 
-- How many songs are in the catalog  
-- What genres or moods are represented  
-- Did you add or remove data  
-- Are there parts of musical taste missing in the dataset  
+The score only uses genre, mood, energy, and acousticness. The other columns are not used yet.
+
+**What I added.** The starter file had 10 songs. I added 12 more, which brought it to 22. I also added six new columns: `popularity`, `release_decade`, `mood_tags`, `instrumentalness`, `speechiness`, and `liveness`. The new songs bring in genres the starter did not have: hip-hop, edm, country, classical, metal, r&b, reggae, folk, blues, and latin. Neon Echo now has three songs, so I can test a diversity penalty later.
+
+**What is missing.**
+- There is no "sad" mood. The closest are "melancholic" and "wistful", and each appears on only one song.
+- Most genres have only one song. 14 of the 17 genres have just one. Only pop and lofi have three, and jazz has two.
+- The values are made up. They are realistic guesses, not measurements from real audio.
+- There are no lyrics and no language information.
+- The catalog is tiny, so it cannot cover real musical taste.
 
 ---
 
 ## 5. Strengths  
 
-Where does your system seem to work well  
+**Clear-cut profiles get the obvious #1.** When a listener's genre, mood, and energy all point at the same song, that song wins.
+- High-Energy Pop: Sunrise City is #1 at 4.88.
+- Chill Lofi: Library Rain is #1 at 4.93.
+- Deep Intense Rock: Storm Runner is #1 at 4.93.
 
-Prompts:  
+**Different tastes get different lists.** The Chill Lofi and Deep Intense Rock lists have zero songs in common. The Pop and Lofi lists also share nothing. The Chill Lofi list starts with three lofi songs, as a lofi fan would expect.
 
-- User types for which it gives reasonable results  
-- Any patterns you think your scoring captures correctly  
-- Cases where the recommendations matched your intuition  
+**Closeness works the way it should.** The energy rule rewards songs near the target, not just loud or quiet ones. For the rock listener, Gym Hero (0.93) and Storm Runner (0.91) both score about +1.48 for energy against a 0.92 target.
+
+**Every score is explainable.** Each result lists its reasons, such as "genre match (+2.00)" and "energy 0.82 vs target 0.80 (+1.47)". You can add the reasons up and get the score. That made the problems easy to spot, like the classical result in section 6.
 
 ---
 
@@ -310,23 +332,22 @@ What got me was the classical profile. I asked for energy 0.9 and the #1 song wa
 
 ## 8. Future Work  
 
-Ideas for how you would improve the model next.  
-
-Prompts:  
-
-- Additional features or preferences  
-- Better ways to explain recommendations  
-- Improving diversity among the top results  
-- Handling more complex user tastes  
+1. **Clean up text input.** Lowercase and trim the genre and mood before comparing them. This would fix the "Pop" vs "pop" problem. It should also warn the user when a genre or mood is not in the catalog.
+2. **Validate the energy input.** Keep energy between 0 and 1, or reject values outside that range. This would stop a typo like 2.0 from giving every song negative energy points.
+3. **Group related genres.** Give partial credit to close genres, so "indie pop" earns some points for "pop". This would help Rooftop Lights, which lost the +2.00 genre bonus in the pop results.
 
 ---
 
 ## 9. Personal Reflection  
 
-A few sentences about your experience.  
+**What was my biggest learning moment?**
+Seeing the classical profile's results. I asked for energy 0.9 and the #1 song had energy 0.15. The code did exactly what I told it to, and that's what stuck with me. The weights were my choices, and +2.00 for genre was big enough to beat everything else. Before that, "weights" felt like a small detail. After it, I saw they're basically the system's opinions.
 
-Prompts:  
+**How did AI help, and when did I have to double-check it?**
+Claude helped me plan the scoring rule, write the functions, and draft the docs, and it saved me a lot of time. But I couldn't just trust it. When I ran `pytest`, it failed with "No module named src" until I added a `pytest.ini` with `pythonpath = .`. I had also planned an edge case with the mood "sad", and Claude pointed out that the catalog has no "sad" mood, so I switched the profile to "melancholic" so it tested what I meant. And when I read through the model card, two sentences were wrong. One said Sunrise City is the only song that earns "all four rules", but every song earns energy and acoustic points. The other called Crossroads Lament "classical-flavored", but it's a blues song. I had both fixed. I also had Claude count the genres in the CSV to check the claim that only pop, lofi, and jazz have more than one song.
 
-- What you learned about recommender systems  
-- Something unexpected or interesting you discovered  
-- How this changed the way you think about music recommendation apps  
+**What surprised me about simple algorithms feeling like real recommendations?**
+The Chill Lofi results looked like an actual playlist. It gave me three lofi songs, then Spacewalk Thoughts and Willow Road, which are quiet and acoustic. All it's doing is adding points for genre, mood, energy, and acoustic sound. It felt smart with nothing smart going on. The flip side is that the same simple rules gave a confident wrong answer for the classical listener, and nothing in the output hinted that it was wrong.
+
+**What would I try next?**
+First, the small fixes: lowercase the text, check the energy input, and give partial credit to related genres like indie pop and pop. After that I'd add a diversity penalty, so Neon Echo can't take three of the top five. Then I'd use the columns I'm not scoring yet, like valence and tempo. A bigger catalog with more than one song per genre would help most of all.

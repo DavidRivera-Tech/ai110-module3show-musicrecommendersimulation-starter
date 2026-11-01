@@ -2,16 +2,7 @@
 
 ## Project Summary
 
-In this project you will build and explain a small music recommender system.
-
-Your goal is to:
-
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
-
-Replace this paragraph with your own summary of what your version does.
+My version is called **GenreFirst 1.0**. It is a small content-based music recommender that reads a 22-song catalog and scores every song against one listener's taste: a favorite genre, a favorite mood, a target energy level, and whether they like acoustic sound. Genre match counts the most (+2.00), then mood (+1.00), then how close the song's energy is to the target (up to 1.50), then acoustic preference (up to 0.50). It sorts the songs by score and prints the top 5, with the reasons behind each score. I tested it on six listener profiles, including three edge cases, to see where it works well and where genre-heavy scoring and a tiny catalog lead it astray.
 
 ---
 
@@ -227,10 +218,6 @@ Read and complete `model_card.md`:
 
 [**Model Card**](model_card.md)
 
-Write 1 to 2 paragraphs here about what you learned:
+A recommender turns data into predictions by describing things as numbers and labels, then measuring how well each one fits. In my version, each song has a genre, a mood, an energy level, and an acousticness value. The listener has four matching preferences. A scoring rule adds up points for each match, with closeness counting for energy, and then the songs are sorted by score. Real systems like Spotify do the same thing in spirit, but they learn from millions of plays and skips instead of rules I wrote by hand. What surprised me is how much a handful of simple rules can feel like a real recommendation.
 
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
-
-
-
+Bias shows up in the choices, not in some hidden part of the code. I decided genre is worth +2.00, which is more than energy can ever add, so a 0.15-energy classical song ranked #1 for someone who wanted energy 0.9. The catalog matters too: 14 of the 17 genres have one song, so most listeners get a one-song list after the genre match. Even the matching rule is a choice. Typing "Pop" instead of "pop" dropped Sunrise City from 4.88 to 1.47 with no warning. The result is that listeners whose taste fits the catalog get good lists, and everyone else gets weaker ones without being told. Bigger systems have the same shape, just with more data and less visible choices.
