@@ -136,36 +136,40 @@ You can add more tests in `tests/test_recommender.py`.
 
 ## Sample Recommendation Output
 
-Output of `python -m src.main` for a pop / happy / energy 0.8 listener:
+This is the first of the six profiles that `python -m src.main` runs (High-Energy Pop: pop / happy / energy 0.8 / not acoustic):
 
 ```
-Loaded songs: 22
+PROFILE: High-Energy Pop
+========================
+Preferences: genre=pop, mood=happy, energy=0.8, likes_acoustic=False
 
-Top 5 recommendations for: genre=pop, mood=happy, energy=0.8
-============================================================
-
-1. Sunrise City by Neon Echo  (score: 4.47)
+1. Sunrise City by Neon Echo  (score: 4.88)
      - genre match (+2.00)
      - mood match (+1.00)
      - energy 0.82 vs target 0.80 (+1.47)
+     - acousticness 0.18, prefers non-acoustic (+0.41)
 
-2. Afterglow Avenue by Neon Echo  (score: 3.32)
-     - genre match (+2.00)
-     - energy 0.68 vs target 0.80 (+1.32)
-
-3. Gym Hero by Max Pulse  (score: 3.30)
+2. Gym Hero by Max Pulse  (score: 3.78)
      - genre match (+2.00)
      - energy 0.93 vs target 0.80 (+1.30)
+     - acousticness 0.05, prefers non-acoustic (+0.47)
 
-4. Rooftop Lights by Indigo Parade  (score: 2.44)
+3. Afterglow Avenue by Neon Echo  (score: 3.72)
+     - genre match (+2.00)
+     - energy 0.68 vs target 0.80 (+1.32)
+     - acousticness 0.20, prefers non-acoustic (+0.40)
+
+4. Rooftop Lights by Indigo Parade  (score: 2.77)
      - mood match (+1.00)
      - energy 0.76 vs target 0.80 (+1.44)
+     - acousticness 0.35, prefers non-acoustic (+0.33)
 
-5. Concrete Crown by Kid Meridian  (score: 1.47)
+5. Concrete Crown by Kid Meridian  (score: 1.91)
      - energy 0.78 vs target 0.80 (+1.47)
+     - acousticness 0.12, prefers non-acoustic (+0.44)
 ```
 
-The results mostly match what a pop/happy listener would expect: Sunrise City is the only song to earn genre, mood, and energy points, so it ranks first, and the next two spots go to the other pop songs. Rooftop Lights got no genre points because "indie pop" does not exactly match "pop", which is the string-matching bias predicted in Expected Biases. Without that miss it would have scored 4.44 and ranked second, so a near-perfect match for this listener is pushed down to fourth.
+The results match what a pop/happy listener would expect: Sunrise City (4.88) is #1 because it is the only song to earn both the genre and mood bonuses (and its energy is almost on target), and the other two pop songs, Gym Hero (3.78) and Afterglow Avenue (3.72), come next. Rooftop Lights (2.77) got no genre points because "indie pop" does not exactly match "pop", which is the string-matching bias predicted in Expected Biases. With the +2.00 genre bonus it would have scored 4.77 and ranked #2, so a near-perfect match for this listener is pushed down to fourth. See [model_card.md](model_card.md) section 7 for the output of the other five profiles.
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->
 
@@ -173,25 +177,47 @@ The results mostly match what a pop/happy listener would expect: Sunrise City is
 
 ## Experiments You Tried
 
-Use this section to document the experiments you ran. For example:
+### Weight shift: genre 2.0 → 1.0 and energy 1.5 → 3.0
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+**What I changed.** I halved the genre bonus and doubled the energy closeness weight, which raises the maximum possible score from 5.0 to 5.5 (1.0 + 1.0 + 3.0 + 0.5). I ran all six profiles, then restored the original weights.
+
+**High-Energy Pop (pop, happy, energy 0.8, not acoustic)**
+
+| Rank | Before (genre 2.0, energy 1.5) | Score | After (genre 1.0, energy 3.0) | Score |
+|---|---|---|---|---|
+| 1 | Sunrise City | 4.88 | Sunrise City | 5.35 |
+| 2 | Gym Hero | 3.78 | Rooftop Lights | 4.21 |
+| 3 | Afterglow Avenue | 3.72 | Gym Hero | 4.08 |
+| 4 | Rooftop Lights | 2.77 | Afterglow Avenue | 4.04 |
+| 5 | Concrete Crown | 1.91 | Concrete Crown | 3.38 |
+
+**Edge Case: Classical but High Energy (classical, melancholic, energy 0.9, likes acoustic)**
+
+| Rank | Before (genre 2.0, energy 1.5) | Score | After (genre 1.0, energy 3.0) | Score |
+|---|---|---|---|---|
+| 1 | Nocturne in Blue Hour | 2.86 | Storm Runner | 3.02 |
+| 2 | Crossroads Lament | 2.17 | Crossroads Lament | 3.01 |
+| 3 | Storm Runner | 1.53 | Fuego en la Calle | 2.96 |
+| 4 | Fuego en la Calle | 1.51 | Gym Hero | 2.94 |
+| 5 | Gym Hero | 1.48 | Pulse Theory | 2.90 |
+
+**More accurate, or just different?** Mostly different, with one clear improvement. For the classical profile, the old #1 was Nocturne in Blue Hour, a 0.15-energy song for a listener who asked for 0.9, and it dropped out of the top 5 entirely. For the pop profile, the happy indie pop song Rooftop Lights moved ahead of two actual pop songs, which is defensible but not obviously better.
+
+**Trade-off.** Doubling the energy weight fixed the classical problem, but it made the system behave more like a plain energy sort. In the classical results, the scores are bunched between 2.90 and 3.02, so tiny energy differences decide the order, and the one classical song is gone. A listener who truly wants classical music would now be poorly served.
+
+**Weights reverted.** I restored genre 2.0 and energy 1.5 after the experiment, and `git diff src/recommender.py` showed no changes. All the other results in this README and the model card use the original weights.
 
 ---
 
 ## Limitations and Risks
 
-Summarize some limitations of your recommender.
+- **Genre dominates a tiny catalog.** The +2.00 genre bonus is larger than the most energy closeness can add (1.50), and 14 of the 17 genres have only one song. A 0.15-energy classical song ranked #1 (2.86) for a listener who wanted energy 0.9.
+- **Exact, case-sensitive matching.** "Pop" does not match "pop". The Capitalized Input profile dropped Sunrise City from 4.88 to 1.47 with no warning.
+- **Sparse moods.** There is no "sad" mood, and 9 of the 15 moods appear on just one song.
+- **No input validation.** An energy target of 2.0 gives all 22 songs negative energy points.
+- **Artist repetition.** Neon Echo holds #1 and #3 in the High-Energy Pop results, because nothing limits one artist.
 
-Examples:
-
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
-
-You will go deeper on this in your model card.
+See the [model card](model_card.md) (sections 6 and 7) for more detail and the full numbers.
 
 ---
 
