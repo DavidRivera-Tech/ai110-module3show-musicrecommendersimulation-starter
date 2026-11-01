@@ -31,6 +31,11 @@ PROFILES = {
     "Edge Case: Capitalized Input": {
         "genre": "Pop", "mood": "Happy", "energy": 0.8,
     },
+    "Extended: Late-Night Focus": {
+        "genre": "lofi", "mood": "focused", "energy": 0.4, "likes_acoustic": True,
+        "tempo_bpm": 78, "valence": 0.55, "instrumental": True,
+        "mood_tags": ["focused", "calm"], "decade": 2020,
+    },
 }
 
 

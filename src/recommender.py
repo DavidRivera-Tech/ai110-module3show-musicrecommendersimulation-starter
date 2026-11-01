@@ -105,7 +105,7 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
 
     if "energy" in user_prefs:
         target = user_prefs["energy"]
-        points = 1.5 * (1 - abs(song["energy"] - target))
+        points = 1.5 * max(0.0, 1 - abs(song["energy"] - target))
         score += points
         reasons.append(f"energy {song['energy']:.2f} vs target {target:.2f} (+{points:.2f})")
 
@@ -116,6 +116,47 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
         else:
             points = 0.5 * (1 - song["acousticness"])
             reasons.append(f"acousticness {song['acousticness']:.2f}, prefers non-acoustic (+{points:.2f})")
+        score += points
+
+    if "tempo_bpm" in user_prefs:
+        target = user_prefs["tempo_bpm"]
+        points = 0.5 * max(0.0, 1 - abs(song["tempo_bpm"] - target) / 60)
+        score += points
+        reasons.append(f"tempo {song['tempo_bpm']:.0f} BPM vs target {target:.0f} (+{points:.2f})")
+
+    if "valence" in user_prefs:
+        target = user_prefs["valence"]
+        points = 0.5 * max(0.0, 1 - abs(song["valence"] - target))
+        score += points
+        reasons.append(f"valence {song['valence']:.2f} vs target {target:.2f} (+{points:.2f})")
+
+    if "popularity" in user_prefs:
+        target = user_prefs["popularity"]
+        points = 0.5 * max(0.0, 1 - abs(song["popularity"] - target) / 100)
+        score += points
+        reasons.append(f"popularity {song['popularity']} vs target {target:.0f} (+{points:.2f})")
+
+    if "decade" in user_prefs and song["release_decade"] == user_prefs["decade"]:
+        score += 0.5
+        reasons.append(f"decade match, {song['release_decade']}s (+0.50)")
+
+    if "mood_tags" in user_prefs:
+        wanted = user_prefs["mood_tags"]
+        if isinstance(wanted, str):
+            wanted = wanted.split("|")
+        shared = [tag for tag in wanted if tag in song["mood_tags"]][:3]
+        points = 0.25 * len(shared)
+        score += points
+        if shared:
+            reasons.append(f"shared mood tags {', '.join(shared)} (+{points:.2f})")
+
+    if "instrumental" in user_prefs:
+        if user_prefs["instrumental"]:
+            points = 0.5 * song["instrumentalness"]
+            reasons.append(f"instrumentalness {song['instrumentalness']:.2f}, wants instrumental (+{points:.2f})")
+        else:
+            points = 0.5 * (1 - song["instrumentalness"])
+            reasons.append(f"instrumentalness {song['instrumentalness']:.2f}, wants vocals (+{points:.2f})")
         score += points
 
     return score, reasons
