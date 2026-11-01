@@ -211,13 +211,44 @@ def score_song(user_prefs: Dict, song: Dict, mode: str = "balanced") -> Tuple[fl
 
     return score, reasons
 
-def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5, mode: str = "balanced") -> List[Tuple[Dict, float, str]]:
-    """Scores every song in a ranking mode, sorts highest first, and returns the top k as (song, score, explanation)."""
+def recommend_songs(
+    user_prefs: Dict,
+    songs: List[Dict],
+    k: int = 5,
+    mode: str = "balanced",
+    diversity: bool = False,
+) -> List[Tuple[Dict, float, str]]:
+    """Scores every song in a ranking mode and returns the top k as (song, score, explanation); diversity=True re-ranks to avoid repeat artists and genres."""
     get_strategy(mode)  # fail early on an unknown mode
     scored = []
     for song in songs:
         score, reasons = score_song(user_prefs, song, mode)
-        scored.append((song, score, "; ".join(reasons)))
+        scored.append((song, score, reasons))
 
     scored.sort(key=lambda item: item[1], reverse=True)
-    return scored[:k]
+
+    if not diversity:
+        return [(song, score, "; ".join(reasons)) for song, score, reasons in scored[:k]]
+
+    # Fill the list one slot at a time, charging each candidate for repeats already picked.
+    picked: List[Tuple[Dict, float, str]] = []
+    remaining = scored[:]
+    while remaining and len(picked) < k:
+        best = None
+        for index, (song, score, reasons) in enumerate(remaining):
+            artist_penalty = 1.0 * sum(1 for p, _, _ in picked if p["artist"] == song["artist"])
+            genre_penalty = 0.5 * sum(1 for p, _, _ in picked if p["genre"] == song["genre"])
+            adjusted = score - artist_penalty - genre_penalty
+            if best is None or adjusted > best[0]:
+                best = (adjusted, index, artist_penalty, genre_penalty)
+
+        adjusted, index, artist_penalty, genre_penalty = best
+        song, _, reasons = remaining.pop(index)
+        reasons = list(reasons)
+        if artist_penalty:
+            reasons.append(f"artist repeat penalty (-{artist_penalty:.2f})")
+        if genre_penalty:
+            reasons.append(f"genre repeat penalty (-{genre_penalty:.2f})")
+        picked.append((song, adjusted, "; ".join(reasons)))
+
+    return picked

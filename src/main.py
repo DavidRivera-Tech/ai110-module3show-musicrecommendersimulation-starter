@@ -54,6 +54,11 @@ def main() -> None:
         action="store_true",
         help="print each ranking mode's name and description, then exit",
     )
+    parser.add_argument(
+        "--diversity",
+        action="store_true",
+        help="re-rank so the same artist and genre don't fill the top results (off by default)",
+    )
     args = parser.parse_args()
 
     if args.list_modes:
@@ -64,9 +69,13 @@ def main() -> None:
     songs = load_songs("data/songs.csv")
     if args.mode != "balanced":
         print(f"Mode: {args.mode} - {get_strategy(args.mode).description}")
+    if args.diversity:
+        print("Diversity re-rank: on (artist repeat -1.00, genre repeat -0.50)")
 
     for name, user_prefs in PROFILES.items():
-        recommendations = recommend_songs(user_prefs, songs, k=5, mode=args.mode)
+        recommendations = recommend_songs(
+            user_prefs, songs, k=5, mode=args.mode, diversity=args.diversity
+        )
 
         profile = ", ".join(f"{key}={value}" for key, value in user_prefs.items())
         header = f"PROFILE: {name}"
