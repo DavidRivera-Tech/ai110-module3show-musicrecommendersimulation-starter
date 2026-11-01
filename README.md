@@ -65,6 +65,37 @@ This recommender is **content-based only**, since there is a song catalog and a 
 - `target_energy`
 - `likes_acoustic`
 
+### Algorithm Recipe
+
+Each song gets a score from 0 to 5.0 by adding up these rules:
+
+| Rule | Points |
+|---|---|
+| Genre match | **+2.0** if `song.genre == favorite_genre`, otherwise 0 |
+| Mood match | **+1.0** if `song.mood == favorite_mood`, otherwise 0 |
+| Energy closeness | **1.5 × (1 − \|song energy − target energy\|)** |
+| Acoustic preference | If `likes_acoustic`: **+0.5 × acousticness**. Otherwise: **+0.5 × (1 − acousticness)** |
+
+Numeric features reward **closeness, not higher or lower values**. A song with energy 0.80 earns full energy points for a user targeting 0.80, and a song at 0.95 earns fewer, even though it is "more energetic." Likewise, a user who dislikes acoustic music earns points from songs with *low* acousticness, not from songs with high or low values in general.
+
+**Data flow:**
+
+```
+INPUT                    PROCESS                               OUTPUT
+-----                    -------                               ------
+User preferences   -->   Load every song from songs.csv  -->   Sort songs by score
+(genre, mood,            For each song:                        (highest first)
+ target energy,            apply the scoring rules             Return the top k
+ likes acoustic)           to get one score                    recommendations
+```
+
+### Expected Biases
+
+- **Genre can dominate.** At +2.0 it is the largest single reward, so a song in the favorite genre can outrank a song that is a near-perfect mood and energy match but in a different genre. Great matches outside the user's genre get pushed down the list.
+- **Thin genres give weak results.** Most genres in the catalog have only one song, and only pop, lofi, and jazz have more than one. A user whose favorite genre is, say, metal gets one genre bonus to hand out. After that song, the rest of the list is ranked only by mood, energy, and acousticness.
+- **Exact string matching is brittle.** `indie pop` does not match `pop`, and a mood like `focused` does not match `chill`, even though a listener might enjoy both. Close matches get zero credit.
+- **Features outside the rules are ignored.** Valence, tempo, danceability, and the other new columns do not affect the score, so two songs that feel very different can score the same.
+
 ---
 
 ## Getting Started
@@ -77,6 +108,7 @@ This recommender is **content-based only**, since there is a song catalog and a 
    python -m venv .venv
    source .venv/bin/activate      # Mac or Linux
    .venv\Scripts\activate         # Windows
+   ```
 
 2. Install dependencies
 
