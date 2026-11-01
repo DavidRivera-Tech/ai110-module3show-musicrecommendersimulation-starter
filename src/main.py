@@ -9,7 +9,9 @@ You will implement the functions in recommender.py:
 - recommend_songs
 """
 
-from src.recommender import load_songs, recommend_songs
+import argparse
+
+from src.recommender import STRATEGIES, get_strategy, load_songs, recommend_songs
 
 
 PROFILES = {
@@ -40,10 +42,31 @@ PROFILES = {
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Music Recommender Simulation")
+    parser.add_argument(
+        "--mode",
+        choices=list(STRATEGIES),
+        default="balanced",
+        help="ranking mode (default: balanced)",
+    )
+    parser.add_argument(
+        "--list-modes",
+        action="store_true",
+        help="print each ranking mode's name and description, then exit",
+    )
+    args = parser.parse_args()
+
+    if args.list_modes:
+        for strategy in STRATEGIES.values():
+            print(f"{strategy.name}: {strategy.description}")
+        return
+
     songs = load_songs("data/songs.csv")
+    if args.mode != "balanced":
+        print(f"Mode: {args.mode} - {get_strategy(args.mode).description}")
 
     for name, user_prefs in PROFILES.items():
-        recommendations = recommend_songs(user_prefs, songs, k=5)
+        recommendations = recommend_songs(user_prefs, songs, k=5, mode=args.mode)
 
         profile = ", ".join(f"{key}={value}" for key, value in user_prefs.items())
         header = f"PROFILE: {name}"

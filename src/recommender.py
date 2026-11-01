@@ -90,82 +90,133 @@ def load_songs(csv_path: str) -> List[Dict]:
     print(f"Loaded songs: {len(songs)}")
     return songs
 
-def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
-    """Scores one song against user preferences and returns (score, reasons)."""
+class ScoringStrategy:
+    """A ranking mode: a name, a one-line description, and a table of weights."""
+    name = "balanced"
+    description = "Default weights: genre +2.0, mood +1.0, energy up to 1.5."
+    weights = {
+        "genre": 2.0,
+        "mood": 1.0,
+        "energy": 1.5,
+        "acoustic": 0.5,
+        "tempo": 0.5,
+        "valence": 0.5,
+        "popularity": 0.5,
+        "decade": 0.5,
+        "mood_tag": 0.25,  # per shared tag, max 3 tags
+        "instrumental": 0.5,
+    }
+
+
+class GenreBoostStrategy(ScoringStrategy):
+    name = "genre-boost"
+    description = "Genre counts double (4.0); mood and energy count less."
+    weights = {**ScoringStrategy.weights, "genre": 4.0, "mood": 0.5, "energy": 1.0}
+
+
+class MoodFirstStrategy(ScoringStrategy):
+    name = "mood-first"
+    description = "Mood counts triple (3.0); genre drops to 1.0."
+    weights = {**ScoringStrategy.weights, "mood": 3.0, "genre": 1.0}
+
+
+class EnergyFocusedStrategy(ScoringStrategy):
+    name = "energy-focused"
+    description = "Energy closeness counts most (4.0); genre and mood count 0.5."
+    weights = {**ScoringStrategy.weights, "energy": 4.0, "genre": 0.5, "mood": 0.5}
+
+
+STRATEGIES: Dict[str, ScoringStrategy] = {
+    s.name: s
+    for s in (ScoringStrategy(), GenreBoostStrategy(), MoodFirstStrategy(), EnergyFocusedStrategy())
+}
+
+
+def get_strategy(name: str) -> ScoringStrategy:
+    """Returns the ranking mode with this name, or raises ValueError if it does not exist."""
+    if name not in STRATEGIES:
+        raise ValueError(f"Unknown mode '{name}'. Choose from: {', '.join(STRATEGIES)}")
+    return STRATEGIES[name]
+
+
+def score_song(user_prefs: Dict, song: Dict, mode: str = "balanced") -> Tuple[float, List[str]]:
+    """Scores one song against user preferences using a ranking mode; returns (score, reasons)."""
+    w = get_strategy(mode).weights
     score = 0.0
     reasons: List[str] = []
 
     if "genre" in user_prefs and song["genre"] == user_prefs["genre"]:
-        score += 2.0
-        reasons.append("genre match (+2.00)")
+        score += w["genre"]
+        reasons.append(f"genre match (+{w['genre']:.2f})")
 
     if "mood" in user_prefs and song["mood"] == user_prefs["mood"]:
-        score += 1.0
-        reasons.append("mood match (+1.00)")
+        score += w["mood"]
+        reasons.append(f"mood match (+{w['mood']:.2f})")
 
     if "energy" in user_prefs:
         target = user_prefs["energy"]
-        points = 1.5 * max(0.0, 1 - abs(song["energy"] - target))
+        points = w["energy"] * max(0.0, 1 - abs(song["energy"] - target))
         score += points
         reasons.append(f"energy {song['energy']:.2f} vs target {target:.2f} (+{points:.2f})")
 
     if "likes_acoustic" in user_prefs:
         if user_prefs["likes_acoustic"]:
-            points = 0.5 * song["acousticness"]
+            points = w["acoustic"] * song["acousticness"]
             reasons.append(f"acousticness {song['acousticness']:.2f}, likes acoustic (+{points:.2f})")
         else:
-            points = 0.5 * (1 - song["acousticness"])
+            points = w["acoustic"] * (1 - song["acousticness"])
             reasons.append(f"acousticness {song['acousticness']:.2f}, prefers non-acoustic (+{points:.2f})")
         score += points
 
     if "tempo_bpm" in user_prefs:
         target = user_prefs["tempo_bpm"]
-        points = 0.5 * max(0.0, 1 - abs(song["tempo_bpm"] - target) / 60)
+        points = w["tempo"] * max(0.0, 1 - abs(song["tempo_bpm"] - target) / 60)
         score += points
         reasons.append(f"tempo {song['tempo_bpm']:.0f} BPM vs target {target:.0f} (+{points:.2f})")
 
     if "valence" in user_prefs:
         target = user_prefs["valence"]
-        points = 0.5 * max(0.0, 1 - abs(song["valence"] - target))
+        points = w["valence"] * max(0.0, 1 - abs(song["valence"] - target))
         score += points
         reasons.append(f"valence {song['valence']:.2f} vs target {target:.2f} (+{points:.2f})")
 
     if "popularity" in user_prefs:
         target = user_prefs["popularity"]
-        points = 0.5 * max(0.0, 1 - abs(song["popularity"] - target) / 100)
+        points = w["popularity"] * max(0.0, 1 - abs(song["popularity"] - target) / 100)
         score += points
         reasons.append(f"popularity {song['popularity']} vs target {target:.0f} (+{points:.2f})")
 
     if "decade" in user_prefs and song["release_decade"] == user_prefs["decade"]:
-        score += 0.5
-        reasons.append(f"decade match, {song['release_decade']}s (+0.50)")
+        score += w["decade"]
+        reasons.append(f"decade match, {song['release_decade']}s (+{w['decade']:.2f})")
 
     if "mood_tags" in user_prefs:
         wanted = user_prefs["mood_tags"]
         if isinstance(wanted, str):
             wanted = wanted.split("|")
         shared = [tag for tag in wanted if tag in song["mood_tags"]][:3]
-        points = 0.25 * len(shared)
+        points = w["mood_tag"] * len(shared)
         score += points
         if shared:
             reasons.append(f"shared mood tags {', '.join(shared)} (+{points:.2f})")
 
     if "instrumental" in user_prefs:
         if user_prefs["instrumental"]:
-            points = 0.5 * song["instrumentalness"]
+            points = w["instrumental"] * song["instrumentalness"]
             reasons.append(f"instrumentalness {song['instrumentalness']:.2f}, wants instrumental (+{points:.2f})")
         else:
-            points = 0.5 * (1 - song["instrumentalness"])
+            points = w["instrumental"] * (1 - song["instrumentalness"])
             reasons.append(f"instrumentalness {song['instrumentalness']:.2f}, wants vocals (+{points:.2f})")
         score += points
 
     return score, reasons
 
-def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
-    """Scores every song, sorts highest first, and returns the top k as (song, score, explanation)."""
+def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5, mode: str = "balanced") -> List[Tuple[Dict, float, str]]:
+    """Scores every song in a ranking mode, sorts highest first, and returns the top k as (song, score, explanation)."""
+    get_strategy(mode)  # fail early on an unknown mode
     scored = []
     for song in songs:
-        score, reasons = score_song(user_prefs, song)
+        score, reasons = score_song(user_prefs, song, mode)
         scored.append((song, score, "; ".join(reasons)))
 
     scored.sort(key=lambda item: item[1], reverse=True)

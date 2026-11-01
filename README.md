@@ -198,6 +198,28 @@ The results match what a pop/happy listener would expect: Sunrise City (4.88) is
 
 **Weights reverted.** I restored genre 2.0 and energy 1.5 after the experiment, and `git diff src/recommender.py` showed no changes. All the other results in this README and the model card use the original weights.
 
+### Ranking modes
+
+The weight-shift experiment above was a one-off edit. I later turned it into switchable ranking modes: each mode is a small class that only holds a table of weights. Run `python -m src.main --list-modes` to see them, or `python -m src.main --mode energy-focused` to switch.
+
+| Mode | Weights changed from balanced |
+|---|---|
+| balanced (default) | none: genre 2.0, mood 1.0, energy 1.5 |
+| genre-boost | genre 4.0, mood 0.5, energy 1.0 |
+| mood-first | mood 3.0, genre 1.0 |
+| energy-focused | energy 4.0, genre 0.5, mood 0.5 |
+
+Top 3 results for the Classical but High Energy listener (classical, melancholic, energy 0.9, likes acoustic):
+
+| Mode | #1 | #2 | #3 |
+|---|---|---|---|
+| balanced | Nocturne in Blue Hour (2.86) | Crossroads Lament (2.17) | Storm Runner (1.53) |
+| genre-boost | Nocturne in Blue Hour (4.74) | Crossroads Lament (1.39) | Storm Runner (1.04) |
+| mood-first | Crossroads Lament (4.17) | Nocturne in Blue Hour (1.86) | Storm Runner (1.53) |
+| energy-focused | Storm Runner (4.01) | Fuego en la Calle (3.92) | Gym Hero (3.90) |
+
+The same listener gets three different #1 songs across the four modes. Genre-boost keeps Nocturne in Blue Hour first and widens its lead, which makes the genre-dominance problem worse. Mood-first puts the blues song Crossroads Lament first, because it is the only melancholic song. Energy-focused puts Storm Runner first, the song closest to the 0.9 energy the listener asked for. That matches the weight-shift experiment above, where Storm Runner also took #1 once energy counted for more than genre. Scores are not normalized, so they can't be compared between modes.
+
 ---
 
 ## Limitations and Risks
